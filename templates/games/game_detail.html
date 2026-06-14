@@ -1,0 +1,15 @@
+<h1>Game {{ game.id }}</h1>
+
+<p>Status: {{ game.status }}</p>
+<p>Current Round: {{ game.current_round }}</p>
+
+{% if current_round %}
+<p>Drawer:{{ current_round.drawer.username }}</p>
+<p>Word: {{ current_round.word.text }}</p>
+<p>Total Rounds: {{ total_rounds }}</p>
+{% endif %}
+
+<form method="POST" action="{% url 'next_round' game.id %}">
+    {% csrf_token %}
+    <button>End Round</button>
+</form>

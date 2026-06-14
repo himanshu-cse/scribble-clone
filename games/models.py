@@ -37,6 +37,6 @@ class PlayerScore(models.Model):
     class Meta:
         unique_together = ("game", "player")
 
-class UserWord(models.Model):
+class UsedWord(models.Model):
     game = models.ForeignKey(Game, on_delete=models.CASCADE)
     word = models.ForeignKey(Word, on_delete=models.CASCADE)

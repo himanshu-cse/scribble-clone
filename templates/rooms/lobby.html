@@ -7,3 +7,8 @@
     <li>{{ player.user.username }}</li>
 {% endfor %}
 </ul>
+
+<form method="POST" action="{% url 'start_game' room.code %}">
+    {% csrf_token %}
+    <button> Start Game </button>
+</form>
