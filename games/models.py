@@ -40,3 +40,12 @@ class PlayerScore(models.Model):
 class UsedWord(models.Model):
     game = models.ForeignKey(Game, on_delete=models.CASCADE)
     word = models.ForeignKey(Word, on_delete=models.CASCADE)
+
+class RoundGuess(models.Model):
+    round = models.ForeignKey(Round, on_delete=models.CASCADE)
+    player = models.ForeignKey(User, on_delete=models.CASCADE)
+    guessed_correctly = models.BooleanField(default=True)
+    guessed_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ("round", "player")

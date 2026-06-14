@@ -1,15 +1,70 @@
 <h1>Game {{ game.id }}</h1>
 
 <p>Status: {{ game.status }}</p>
-<p>Current Round: {{ game.current_round }}</p>
+
+<p>Current Round: {{ game.current_round }} / {{ total_rounds }}</p>
 
 {% if current_round %}
 <p>Drawer:{{ current_round.drawer.username }}</p>
 <p>Word: {{ current_round.word.text }}</p>
-<p>Total Rounds: {{ total_rounds }}</p>
+
 {% endif %}
+
+{% if game.status == "FINISHED" %}
+<hr>
+
+<h1>GAME OVER</h1>
+
+{% endif %}
+
+<h2>Leaderboard</h2>
+<table border="1">
+    <tr>
+        <th>Rank</th>
+        <th>Player</th>
+        <th>Score</th>
+    </tr>
+
+    {% for score in leaderboard %}
+    <tr>
+        <td>{{ forloop.counter }}</td>
+        <td>{{ score.player.username }}</td>
+        <td>{{ score.score }}</td>
+    </tr>
+    {% endfor %}
+</table>
+
+<hr>
+
+<h2>Round History</h2>
+<table border="1">
+    <tr>
+        <th>Round</th>
+        <th>Drawer</th>
+        <th>Word</th>
+        <th>Ended</th>
+    </tr>
+
+    {% for round in rounds %}
+    <tr>
+        <td>{{ round.round_number }}</td>
+        <td>{{ round.drawer.username }}</td>
+        <td>{{ round.word.text }}</td>
+        <td>{{ round.ended_at }}</td>
+    </tr>
+    {% endfor %}
+</table>
+
+<hr>
 
 <form method="POST" action="{% url 'next_round' game.id %}">
     {% csrf_token %}
     <button>End Round</button>
+</form>
+
+<form method="POST" action="{% url 'test_guess' game.id %}">
+    {% csrf_token %}
+    <button>
+        Simulate Correct Guess
+    </button>
 </form>

@@ -1,5 +1,6 @@
 from rooms.models import RoomPlayer
-from .models import Game, PlayerScore, Round, UsedWord, Word
+from .models import Game, PlayerScore, Round, UsedWord, Word, RoundGuess
+from django.utils import timezone
 
 def start_game(room):
     game = Game.objects.create(room=room, status=Game.IN_PROGRESS, current_round=1, max_rounds=3)
@@ -26,9 +27,14 @@ def choose_word(game):
 def start_round(game):
     drawer = choose_drawer(game)
     word = choose_word(game)
-    Round.objects.create(game=game, drawer=drawer, word=word, round_number=game.current_round)
+    round_obj = Round.objects.create(game=game, drawer=drawer, word=word, round_number=game.current_round)
+    return round_obj
 
 def end_round(game):
+    current_round = Round.objects.filter(game=game).order_by("-round_number").first()
+    current_round.ended_at = timezone.now()
+    current_round.save()
+
     game.current_round += 1
     game.save()
 
@@ -42,4 +48,38 @@ def end_round(game):
 def get_total_rounds(game):
     player_count = RoomPlayer.objects.filter(room=game.room, is_spectator=False).count()
     return player_count * game.max_rounds
+
+def award_points(game, player, points):
+    score = PlayerScore.objects.get(game=game, player=player)
+    score.score += points
+    score.save()
+    return score
+
+def record_correct_guess(round_obj, player):
+
+    if player == round_obj.drawer:
+        return False
+
+    guess, created = RoundGuess.objects.get_or_create(round=round_obj, player=player)
+
+    if not created:
+        return False
+    
+    award_points(round_obj.game, player, 100)
+    award_points(round_obj.game, round_obj.drawer, 20)
+
+    if everyone_guessed(round_obj):
+        end_round(round_obj.game)
+
+    return True
+
+def get_correct_guess_count(round_obj):
+    return RoundGuess.objects.filter(round=round_obj).count()
+
+def get_eligible_guessers(round_obj):
+    return RoomPlayer.objects.filter(room=round_obj.game.room, is_spectator=False).count() - 1
+
+def everyone_guessed(round_obj):
+    return (get_correct_guess_count(round_obj) >= get_eligible_guessers(round_obj))
+
 
