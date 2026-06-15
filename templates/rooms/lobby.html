@@ -24,7 +24,7 @@ const socket = new WebSocket("ws://" + window.location.host + "/ws/chat/" + room
 
 socket.onmessage = function(e) {
     const data = JSON.parse(e.data);
-    document.getElementById("chat-log").innerHTML += "<p>" + data.message + "</p>";
+    document.getElementById("chat-log").innerHTML += "<p>" + data.username + ": " + data.message + "</p>";
 };
 
 document.getElementById("chat-send").onclick = function() {

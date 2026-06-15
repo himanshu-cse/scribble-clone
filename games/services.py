@@ -82,4 +82,17 @@ def get_eligible_guessers(round_obj):
 def everyone_guessed(round_obj):
     return (get_correct_guess_count(round_obj) >= get_eligible_guessers(round_obj))
 
+def process_guess(room, player, message):
+    game = Game.objects.filter(room=room, status=Game.IN_PROGRESS).first()
+    if not game:
+        return False
+    
+    current_round = Round.objects.filter(game=game).order_by("-round_number").first()
+
+    if (message.lower().strip() == current_round.word.text.lower()):
+        record_correct_guess(current_round, player)
+        return True
+    
+    return False
+
 

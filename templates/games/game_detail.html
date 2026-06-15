@@ -68,3 +68,28 @@
         Simulate Correct Guess
     </button>
 </form>
+
+<div id="chat-log"></div>
+<input id="chat-message-input" type="text"/>
+<button id="chat-send"> Send </button>
+
+<script>
+
+const roomCode = "{{ game.room.code }}";
+const socket = new WebSocket("ws://" + window.location.host + "/ws/chat/" + roomCode + "/");
+
+socket.onmessage = function(e) {
+    const data = JSON.parse(e.data);
+    document.getElementById("chat-log").innerHTML += "<p>" + data.username + ": " + data.message + "</p>";
+};
+
+document.getElementById("chat-send").onclick = function() {
+    const input = document.getElementById("chat-message-input");
+    socket.send(
+        JSON.stringify({message: input.value})
+    );
+
+    input.value = "";
+};
+
+</script>

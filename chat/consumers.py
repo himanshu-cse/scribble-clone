@@ -1,6 +1,21 @@
 import json
 from channels.generic.websocket import AsyncWebsocketConsumer
 
+from chat.models import ChatMessage
+from games.services import process_guess
+from rooms.models import Room
+
+from channels.db import database_sync_to_async
+
+@database_sync_to_async
+def save_message(room_code, user, message):
+    room = Room.objects.filter(code=room_code).first()
+    return ChatMessage.objects.create(room=room, user=user, message=message)
+
+@database_sync_to_async
+def get_room(room_code):
+    return Room.objects.filter(code=room_code).first()
+
 class ChatConsumer(AsyncWebsocketConsumer):
 
     async def connect(self):
@@ -9,6 +24,12 @@ class ChatConsumer(AsyncWebsocketConsumer):
 
         self.room_code = self.scope["url_route"]["kwargs"]["room_code"]
         self.room_group_name = f"room_{self.room_code}"
+
+        # Grab the user from the AuthMiddlewareStack
+        self.user = self.scope["user"]
+
+        # Fetch the room using database_sync_to_async
+        self.room = await get_room(self.room_code)
 
         await self.channel_layer.group_add(
             self.room_group_name,
@@ -31,20 +52,38 @@ class ChatConsumer(AsyncWebsocketConsumer):
         data = json.loads(text_data)
         message = data["message"]
 
+        # We handle the case where a user might not be logged in
+        # AnonymousUser doesn't have a username, so we provide a fallback
+        username = self.user.username if self.user.is_authenticated else "Anonymous"
+
+        await save_message(self.room_code, self.user, message)
+
+        # Wrap the heavily synchronous process_guess function
+        is_correct_guess = await database_sync_to_async(process_guess)(self.room, self.user, message)
+
+        if is_correct_guess:
+            message = "correct_guess"
+
         await self.channel_layer.group_send(
             self.room_group_name,
             {
                 "type": "chat_message",
                 "message": message,
+                "username": username,
             }
         )
 
     async def chat_message(self, event):
+        # Extract the data from the broadcasted event
+        message = event["message"]
+        username = event["username"]
 
+        # Send the finalized data to the frontend
         await self.send(
             text_data=json.dumps(
                 {
-                    "message": event["message"]
+                    "message": message,
+                    "username": username,
                 }
             )
         )
