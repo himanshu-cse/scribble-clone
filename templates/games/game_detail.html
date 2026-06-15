@@ -80,7 +80,26 @@ const socket = new WebSocket("ws://" + window.location.host + "/ws/chat/" + room
 
 socket.onmessage = function(e) {
     const data = JSON.parse(e.data);
-    document.getElementById("chat-log").innerHTML += "<p>" + data.username + ": " + data.message + "</p>";
+    // --- Check for system commands ---
+    if (data.command === "reload_page") {
+        window.location.reload(); 
+        return; // Stop running the rest of the script
+    }
+
+    const chatLog = document.getElementById("chat-log");
+
+    // if(data.message === "correct_guess"){
+    //     chatLog.innerHTML += "<p style='color: green; font-weight: bold;'>🎉 " + data.username + " guessed the word!</p>";
+    // }
+    // else{
+        chatLog.innerHTML += "<p><strong>" + data.username + ":</strong> " + data.message + "</p>";
+    // }
+
+    const chatContainer = document.getElementById("chat-container");
+    if(chatContainer){
+         chatContainer.scrollTop = chatContainer.scrollHeight;
+    }
+    
 };
 
 document.getElementById("chat-send").onclick = function() {
