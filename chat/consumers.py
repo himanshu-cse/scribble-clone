@@ -145,7 +145,7 @@ class ChatConsumer(AsyncWebsocketConsumer):
             await start_next_round_for_room(self.room)
 
         elif event_type == "round_timeout":
-            await end_current_round_for_room(room)
+            await end_current_round_for_room(self.room)
 
     async def chat_message(self, event):
         # Extract the data from the broadcasted event
