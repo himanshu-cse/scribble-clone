@@ -1,7 +1,7 @@
 from django.shortcuts import render, redirect, get_object_or_404
 
 from django.contrib.auth.models import User
-from games.services import end_round, get_total_rounds, start_game, record_correct_guess
+from games.services import end_current_round, get_total_rounds, start_game, record_correct_guess
 from rooms.models import Room
 from .models import Game, PlayerScore, Round
 
@@ -29,7 +29,7 @@ def game_detail_view(request, game_id):
 
 def next_round_view(request, game_id):
     game = Game.objects.get(id=game_id)
-    round_obj = end_round(game)
+    end_current_round(game)
 
     return redirect("game_detail", game_id=game.id)
 

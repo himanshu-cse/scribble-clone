@@ -1,3 +1,5 @@
+from locale import currency
+
 from rooms.models import RoomPlayer
 from .models import Game, PlayerScore, Round, UsedWord, Word, RoundGuess
 from django.utils import timezone
@@ -33,34 +35,38 @@ def start_round(game):
     round_obj = Round.objects.create(game=game, drawer=drawer, word=word, round_number=game.current_round)
     return round_obj
 
-def end_round(game):
+def end_current_round(game):
     current_round = Round.objects.filter(game=game).order_by("-round_number").first()
     current_round.ended_at = timezone.now()
     current_round.save()
 
-    game.current_round += 1
-    game.save()
-
-    # Determine if game is over or we start a new round
-    if game.current_round > get_total_rounds(game):
-        game.status = Game.FINISHED
-        result = game.save()
-    else:
-        result = start_round(game)
-    
-    # --- NEW: Broadcast a reload command to the whole room ---
     channel_layer = get_channel_layer()
     async_to_sync(channel_layer.group_send)(
         f"room_{game.room.code}",
         {
-            "type": "system_message",  # This tells Channels which function to trigger in consumers.py
+            "type": "system_message", 
             "command": "reload_page"
         }
     )
-    # ---------------------------------------------------------
 
-    return result
+def start_next_round(game):
+    game.current_round += 1
 
+    if game.current_round > get_total_rounds(game):
+        game.status = Game.FINISHED
+        game.save()
+    else:
+        game.save()
+        start_round(game)
+
+    channel_layer = get_channel_layer()
+    async_to_sync(channel_layer.group_send)(
+        f"room_{game.room.code}",
+        {
+            "type": "system_message",  
+            "command": "reload_page"
+        }
+    )
 
 def get_total_rounds(game):
     player_count = RoomPlayer.objects.filter(room=game.room, is_spectator=False).count()
@@ -86,7 +92,7 @@ def record_correct_guess(round_obj, player):
     award_points(round_obj.game, round_obj.drawer, 20)
 
     if everyone_guessed(round_obj):
-        end_round(round_obj.game)
+        end_current_round(round_obj.game)
 
     return True
 
@@ -100,7 +106,7 @@ def everyone_guessed(round_obj):
     return (get_correct_guess_count(round_obj) >= get_eligible_guessers(round_obj))
 
 def process_guess(room, player, message):
-    game = Game.objects.filter(room=room, status=Game.IN_PROGRESS).first()
+    game = Game.objects.filter(room=room, status=Game.IN_PROGRESS).order_by("-created_at").first()
     if not game:
         return False
     
@@ -108,9 +114,6 @@ def process_guess(room, player, message):
 
     if (message.lower().strip() == current_round.word.text.lower()):
         return record_correct_guess(current_round, player)
-    
-    if everyone_guessed(current_round):
-        end_round(game)
     
     return False
 

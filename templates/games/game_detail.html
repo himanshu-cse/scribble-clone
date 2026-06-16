@@ -1,9 +1,7 @@
 <h1>Game {{ game.id }}</h1>
 
 <p>Status: {{ game.status }}</p>
-
 <p>Current Round: {{ game.current_round }} / {{ total_rounds }}</p>
-
 {% if current_round %}
     <p>Drawer:{{ current_round.drawer.username }}</p>
     {% if request.user == current_round.drawer %}
@@ -24,80 +22,96 @@
 
 {% endif %}
 
-<h2>Leaderboard</h2>
-<table border="1">
-    <tr>
-        <th>Rank</th>
-        <th>Player</th>
-        <th>Score</th>
-    </tr>
-
-    {% for score in leaderboard %}
-    <tr>
-        <td>{{ forloop.counter }}</td>
-        <td>{{ score.player.username }}</td>
-        <td>{{ score.score }}</td>
-    </tr>
-    {% endfor %}
-</table>
-
-<hr>
-
-<h2>Round History</h2>
-<table border="1">
-    <tr>
-        <th>Round</th>
-        <th>Drawer</th>
-        <th>Word</th>
-        <th>Ended</th>
-    </tr>
-
-    {% for round in rounds %}
-    <tr>
-        <td>{{ round.round_number }}</td>
-        <td>{{ round.drawer.username }}</td>
-        {% if round.ended_at %}
-            <td>{{ round.word.text }}</td>
-        {% else %}
-            <td> In progress </td>
-        {% endif %}
-        <td>{{ round.ended_at }}</td>
-    </tr>
-    {% endfor %}
-</table>
-
-<hr>
-
-<form method="POST" action="{% url 'next_round' game.id %}">
-    {% csrf_token %}
-    <button>End Round</button>
-</form>
-
-<form method="POST" action="{% url 'test_guess' game.id %}">
-    {% csrf_token %}
-    <button>
-        Simulate Correct Guess
-    </button>
-</form>
-
-<canvas
-    id = "drawing-board"
-    width = "800"
-    height = "500"
-    style = "border: 1px solid black;"
-></canvas>
-
-{% if request.user == current_round.drawer %}
-    <input id="brush-color" type="color" value="#ff0000">
-    <label for="brush-size">Brush size</label>
-    <input id="brush-size" type="range" min="1" max="30" value="5">
-    <span id="brush-size-value">5</span>
-    <button id="clear-canvas" type="button">Clear</button>
+{% if current_round.ended_at and game.status == "IN_PROGRESS" %}
+    <h2>Round Over</h2>
+    <p>Next round starting soon...</p>
+    <h2>Leaderboard</h2>
+    <table border="1">
+        <tr>
+            <th>Rank</th>
+            <th>Player</th>
+            <th>Score</th>
+        </tr>
+    
+        {% for score in leaderboard %}
+        <tr>
+            <td>{{ forloop.counter }}</td>
+            <td>{{ score.player.username }}</td>
+            <td>{{ score.score }}</td>
+        </tr>
+        {% endfor %}
+    </table>
 {% endif %}
+
+<hr>
+
+{% if game.status == "IN_PROGRESS" and not current_round.ended_at %}
+    <div id="timer-display">00:00:00</div>
+
+    <canvas
+        id = "drawing-board"
+        width = "800"
+        height = "400"
+        style = "border: 1px solid black;"
+    ></canvas>
+
+    <hr>
+
+    {% if request.user == current_round.drawer %}
+        <input id="brush-color" type="color" value="#ff0000">
+        <label for="brush-size">Brush size</label>
+        <input id="brush-size" type="range" min="1" max="30" value="5">
+        <span id="brush-size-value">5</span>
+        <button id="clear-canvas" type="button">Clear</button>
+    {% endif %}
+{% endif %}
+
+<hr>
 
 <div id="chat-log"></div>
 <input id="chat-message-input" type="text"/>
 <button id="chat-send"> Send </button>
+
+<hr>
+
+{% if game.status == "IN_PROGRESS" and not current_round.ended_at %}
+    <form method="POST" action="{% url 'next_round' game.id %}">
+        {% csrf_token %}
+        <button>End Round</button>
+    </form>
+
+    <form method="POST" action="{% url 'test_guess' game.id %}">
+        {% csrf_token %}
+        <button>
+            Simulate Correct Guess
+        </button>
+    </form>
+{% endif %}
+
+{% if game.status == "FINISHED" %}
+    <h2>Round History</h2>
+    <table border="1">
+        <tr>
+            <th>Round</th>
+            <th>Drawer</th>
+            <th>Word</th>
+            <th>Ended</th>
+        </tr>
+
+        {% for round in rounds %}
+        <tr>
+            <td>{{ round.round_number }}</td>
+            <td>{{ round.drawer.username }}</td>
+            {% if round.ended_at %}
+                <td>{{ round.word.text }}</td>
+            {% else %}
+                <td> In progress </td>
+            {% endif %}
+            <td>{{ round.ended_at }}</td>
+        </tr>
+        {% endfor %}
+    </table>
+{% endif %}
 
 <script>
 
@@ -106,8 +120,6 @@
     
     socket.onmessage = function(e) {
         const data = JSON.parse(e.data);
-        var c = document.getElementById("drawing-board");
-        var ctx = c.getContext("2d");
 
         // --- Check for system commands ---
         if (data.command === "reload_page") {
@@ -125,7 +137,7 @@
                 chatLog.innerHTML += "<p><strong>" + data.username + ":</strong> " + data.message + "</p>";
             }
         }
-        else if(data.event === "draw"){
+        else if(data.event === "draw" && ctx){
             ctx.beginPath();
             ctx.moveTo(data.fromX, data.fromY);
             ctx.lineTo(data.toX, data.toY);
@@ -135,7 +147,7 @@
             ctx.stroke();
             ctx.closePath();
         }
-        else if(data.event === "clear_canvas"){
+        else if(data.event === "clear_canvas" && ctx){
             ctx.clearRect(0, 0, canvas.width, canvas.height);
         }
     };
@@ -153,12 +165,14 @@
     const isDrawer = "{{ request.user.id }}" === "{{ current_round.drawer.id }}";
 
     const canvas = document.getElementById("drawing-board");
-    const ctx = canvas.getContext("2d");
+    const ctx = canvas ? canvas.getContext("2d") : null;
 
-    canvas.addEventListener("mousedown", startDrawing);
-    canvas.addEventListener("mousemove", draw);
-    canvas.addEventListener("mouseup", stopDrawing);
-    canvas.addEventListener("mouseleave", stopDrawing);
+    if (canvas) {
+        canvas.addEventListener("mousedown", startDrawing);
+        canvas.addEventListener("mousemove", draw);
+        canvas.addEventListener("mouseup", stopDrawing);
+        canvas.addEventListener("mouseleave", stopDrawing);
+    }
 
     let isDrawing = false;
     let lastX = null;
@@ -226,6 +240,17 @@
                 type: "clear_canvas"
             }));
         }
+    }
+
+    const isRoundOver = "{{ current_round.ended_at|yesno:'true,false' }}" === "true";
+    const isGameInProgress = "{{ game.status }}" === "IN_PROGRESS";
+
+    if (isRoundOver && isGameInProgress) {
+        setTimeout(function() {
+            socket.send(JSON.stringify({
+                type: "start_next_round"
+            }));
+        }, 5000);
     }
 
 </script>
