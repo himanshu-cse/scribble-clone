@@ -3,7 +3,7 @@ from channels.generic.websocket import AsyncWebsocketConsumer
 
 from chat.models import ChatMessage
 from games.models import Game, Round
-from games.services import process_guess, start_next_round
+from games.services import end_current_round, process_guess, start_next_round
 from rooms.models import Room
 
 from channels.db import database_sync_to_async
@@ -40,6 +40,18 @@ def start_next_round_for_room(room):
         return
 
     return start_next_round(game)
+
+@database_sync_to_async
+def end_current_round_for_room(room):
+    game = Game.objects.filter(room=room, status=Game.IN_PROGRESS).order_by("-created_at").first()
+    if not game:
+        return
+
+    current_round = Round.objects.filter(game=game).order_by("-round_number").first()
+    if not current_round or not current_round.ended_at:
+        return
+    
+    return end_current_round(game)
 
 class ChatConsumer(AsyncWebsocketConsumer):
 
@@ -131,6 +143,9 @@ class ChatConsumer(AsyncWebsocketConsumer):
         
         elif event_type == "start_next_round":
             await start_next_round_for_room(self.room)
+
+        elif event_type == "round_timeout":
+            await end_current_round_for_room(room)
 
     async def chat_message(self, event):
         # Extract the data from the broadcasted event

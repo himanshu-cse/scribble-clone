@@ -75,7 +75,7 @@
 <hr>
 
 {% if game.status == "IN_PROGRESS" and not current_round.ended_at %}
-    <form method="POST" action="{% url 'next_round' game.id %}">
+    <form method="POST" action="{% url 'end_round' game.id %}">
         {% csrf_token %}
         <button>End Round</button>
     </form>
@@ -250,7 +250,26 @@
             socket.send(JSON.stringify({
                 type: "start_next_round"
             }));
-        }, 5000);
+        }, 2000);
+    }
+
+    let remainingSeconds = Number("{{ remaining_seconds }}");
+    const timerDisplay = document.getElementById("timer-display");
+
+    if(timerDisplay) {
+        timerDisplay.textContent = remainingSeconds;
+
+        const timer = setInterval(function() {
+            remainingSeconds -= 1;
+            timerDisplay.textContent = remainingSeconds;
+
+            if(remainingSeconds <= 0){
+                clearInterval(timer);
+                socket.send(JSON.stringify({
+                    type: "round_timeout"
+                }));
+            }
+        }, 1000);
     }
 
 </script>

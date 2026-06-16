@@ -1,5 +1,3 @@
-from locale import currency
-
 from rooms.models import RoomPlayer
 from .models import Game, PlayerScore, Round, UsedWord, Word, RoundGuess
 from django.utils import timezone
@@ -37,6 +35,10 @@ def start_round(game):
 
 def end_current_round(game):
     current_round = Round.objects.filter(game=game).order_by("-round_number").first()
+
+    if not current_round or current_round.ended_at:
+        return
+
     current_round.ended_at = timezone.now()
     current_round.save()
 

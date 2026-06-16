@@ -1,4 +1,5 @@
 from django.shortcuts import render, redirect, get_object_or_404
+from django.utils import timezone
 
 from django.contrib.auth.models import User
 from games.services import end_current_round, get_total_rounds, start_game, record_correct_guess
@@ -15,6 +16,13 @@ def game_detail_view(request, game_id):
     current_round = Round.objects.filter(game=game).order_by("-round_number").first()
     leaderboard = PlayerScore.objects.filter(game=game).order_by("-score")
     rounds = Round.objects.filter(game=game).order_by("round_number")
+
+    ROUND_DURATION_SECONDS = 60
+    remaining_seconds = 0
+    if current_round and not current_round.ended_at:
+        elapsed = (timezone.now() - current_round.started_at).total_seconds()
+        remaining_seconds = max(0, ROUND_DURATION_SECONDS - int(elapsed))
+
     return render(
         request,
         "games/game_detail.html",
@@ -23,11 +31,12 @@ def game_detail_view(request, game_id):
             "current_round": current_round,
             "total_rounds": get_total_rounds(game),
             "leaderboard": leaderboard,
-            "rounds": rounds
+            "rounds": rounds,
+            "remaining_seconds": remaining_seconds,
         }
     )
 
-def next_round_view(request, game_id):
+def end_round_view(request, game_id):
     game = Game.objects.get(id=game_id)
     end_current_round(game)
 
