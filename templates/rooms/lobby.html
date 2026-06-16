@@ -24,14 +24,19 @@ const socket = new WebSocket("ws://" + window.location.host + "/ws/chat/" + room
 
 socket.onmessage = function(e) {
     const data = JSON.parse(e.data);
-    document.getElementById("chat-log").innerHTML += "<p>" + data.username + ": " + data.message + "</p>";
+   const chatLog = document.getElementById("chat-log");
+
+    if (data.event === "chat_message"){
+        chatLog.innerHTML += "<p><strong>" + data.username + ":</strong> " + data.message + "</p>";
+    }
 };
 
 document.getElementById("chat-send").onclick = function() {
     const input = document.getElementById("chat-message-input");
-    socket.send(
-        JSON.stringify({message: input.value})
-    );
+    socket.send(JSON.stringify({
+        type: "chat_message",
+        message: input.value
+    }));
 
     input.value = "";
 };

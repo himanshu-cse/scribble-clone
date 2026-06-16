@@ -50,28 +50,29 @@ class ChatConsumer(AsyncWebsocketConsumer):
         print("MESSAGE RECEIVED")
 
         data = json.loads(text_data)
-        message = data["message"]
+        event_type = data.get("type")
 
         # We handle the case where a user might not be logged in
         # AnonymousUser doesn't have a username, so we provide a fallback
         username = self.user.username if self.user.is_authenticated else "Anonymous"
 
-        await save_message(self.room_code, self.user, message)
+        if event_type == "chat_message":
+            message = data["message"]
+            await save_message(self.room_code, self.user, message)
+            # Wrap the heavily synchronous process_guess function
+            is_correct_guess = await database_sync_to_async(process_guess)(self.room, self.user, message)
+            if is_correct_guess:
+                message = "correct_guess"
 
-        # Wrap the heavily synchronous process_guess function
-        is_correct_guess = await database_sync_to_async(process_guess)(self.room, self.user, message)
+            await self.channel_layer.group_send(
+                self.room_group_name,
+                {
+                    "type": "chat_message",
+                    "message": message,
+                    "username": username,
+                }
+            )
 
-        if is_correct_guess:
-            message = "correct_guess"
-
-        await self.channel_layer.group_send(
-            self.room_group_name,
-            {
-                "type": "chat_message",
-                "message": message,
-                "username": username,
-            }
-        )
 
     async def chat_message(self, event):
         # Extract the data from the broadcasted event
@@ -82,6 +83,7 @@ class ChatConsumer(AsyncWebsocketConsumer):
         await self.send(
             text_data=json.dumps(
                 {
+                    "event": "chat_message",
                     "message": message,
                     "username": username,
                 }
