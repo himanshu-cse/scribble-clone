@@ -20,7 +20,7 @@ class ChatConsumer(AsyncWebsocketConsumer):
 
     async def connect(self):
 
-        print("CONNECTED")
+        # print("CONNECTED")
 
         self.room_code = self.scope["url_route"]["kwargs"]["room_code"]
         self.room_group_name = f"room_{self.room_code}"
@@ -47,7 +47,7 @@ class ChatConsumer(AsyncWebsocketConsumer):
 
     async def receive(self, text_data):
 
-        print("MESSAGE RECEIVED")
+        # print("MESSAGE RECEIVED")
 
         data = json.loads(text_data)
         event_type = data.get("type")
@@ -61,6 +61,7 @@ class ChatConsumer(AsyncWebsocketConsumer):
             await save_message(self.room_code, self.user, message)
             # Wrap the heavily synchronous process_guess function
             is_correct_guess = await database_sync_to_async(process_guess)(self.room, self.user, message)
+
             if is_correct_guess:
                 message = "correct_guess"
 
@@ -73,6 +74,27 @@ class ChatConsumer(AsyncWebsocketConsumer):
                 }
             )
 
+        elif event_type == "draw":
+            await self.channel_layer.group_send(
+                self.room_group_name,
+                {
+                    "type": "draw_event",
+                    "fromX": data["fromX"],
+                    "fromY": data["fromY"],
+                    "toX": data["toX"],
+                    "toY": data["toY"],
+                    "color": data.get("color", "#ff0000"),
+                    "width": data.get("width", 5),
+                }
+            )
+
+        elif event_type == "clear_canvas":
+            await self.channel_layer.group_send(
+                self.room_group_name, 
+                {
+                    "type": "clear_canvas_event",
+                }
+            )
 
     async def chat_message(self, event):
         # Extract the data from the broadcasted event
@@ -93,10 +115,22 @@ class ChatConsumer(AsyncWebsocketConsumer):
     async def system_message(self, event):
         # This catches the dictionary we sent from games/services.py
         # and sends it directly to the browser via WebSocket
-        await self.send(
-            text_data=json.dumps(
-                {
-                    "command": event["command"]
-                }
-            )
-        )
+        await self.send(text_data=json.dumps({
+            "command": event["command"]
+        }))
+
+    async def draw_event(self, event):
+        await self.send(text_data=json.dumps({
+            "event": "draw",
+            "fromX": event["fromX"],
+            "fromY": event["fromY"],
+            "toX": event["toX"],
+            "toY": event["toY"],
+            "color": event["color"],
+            "width": event["width"],
+        }))
+
+    async def clear_canvas_event(self, event):
+        await self.send(text_data=json.dumps({
+            "event": "clear_canvas",
+        }))

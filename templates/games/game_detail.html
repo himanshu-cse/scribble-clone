@@ -87,6 +87,14 @@
     style = "border: 1px solid black;"
 ></canvas>
 
+{% if request.user == current_round.drawer %}
+    <input id="brush-color" type="color" value="#ff0000">
+    <label for="brush-size">Brush size</label>
+    <input id="brush-size" type="range" min="1" max="30" value="5">
+    <span id="brush-size-value">5</span>
+    <button id="clear-canvas" type="button">Clear</button>
+{% endif %}
+
 <div id="chat-log"></div>
 <input id="chat-message-input" type="text"/>
 <button id="chat-send"> Send </button>
@@ -98,6 +106,9 @@
     
     socket.onmessage = function(e) {
         const data = JSON.parse(e.data);
+        var c = document.getElementById("drawing-board");
+        var ctx = c.getContext("2d");
+
         // --- Check for system commands ---
         if (data.command === "reload_page") {
             window.location.reload(); 
@@ -114,7 +125,19 @@
                 chatLog.innerHTML += "<p><strong>" + data.username + ":</strong> " + data.message + "</p>";
             }
         }
-        
+        else if(data.event === "draw"){
+            ctx.beginPath();
+            ctx.moveTo(data.fromX, data.fromY);
+            ctx.lineTo(data.toX, data.toY);
+            ctx.strokeStyle = data.color;
+            ctx.lineWidth = data.width;
+            ctx.lineCap = "round";
+            ctx.stroke();
+            ctx.closePath();
+        }
+        else if(data.event === "clear_canvas"){
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+        }
     };
     
     document.getElementById("chat-send").onclick = function() {
@@ -126,4 +149,83 @@
         
         input.value = "";
     };
+
+    const isDrawer = "{{ request.user.id }}" === "{{ current_round.drawer.id }}";
+
+    const canvas = document.getElementById("drawing-board");
+    const ctx = canvas.getContext("2d");
+
+    canvas.addEventListener("mousedown", startDrawing);
+    canvas.addEventListener("mousemove", draw);
+    canvas.addEventListener("mouseup", stopDrawing);
+    canvas.addEventListener("mouseleave", stopDrawing);
+
+    let isDrawing = false;
+    let lastX = null;
+    let lastY = null;
+
+    const brushColorInput = document.getElementById("brush-color");
+    const brushSizeInput = document.getElementById("brush-size");
+    const brushSizeValue = document.getElementById("brush-size-value");
+    let brushColor = "#ff0000";
+    let brushSize = 5;
+
+    if (brushColorInput){
+        brushColorInput.oninput = function() {
+            brushColor = brushColorInput.value;
+        };
+    }
+
+    if(brushSizeInput){
+        brushSizeInput.oninput = function() {
+            brushSize = Number(brushSizeInput.value);
+            brushSizeValue.textContent = brushSize;
+        }
+    }
+
+    function startDrawing(e) {
+        if (!isDrawer) return;
+
+        isDrawing = true;
+
+        const rect = canvas.getBoundingClientRect();
+        lastX = e.clientX - rect.left;
+        lastY = e.clientY - rect.top;
+    }
+
+    function stopDrawing() {
+        isDrawing = false;
+        lastX = null;
+        lastY = null;
+    }
+
+    function draw(e) {
+        if(!isDrawer || !isDrawing) return;
+
+        const rect = canvas.getBoundingClientRect();
+        const x = e.clientX - rect.left;
+        const y = e.clientY - rect.top;
+
+        socket.send(JSON.stringify({
+            type: "draw",
+            fromX: lastX,
+            fromY: lastY,
+            toX: x,
+            toY: y,
+            color: brushColor,
+            width: brushSize,
+        }));
+        lastX = x;
+        lastY = y;
+    }
+
+    const clearButton = document.getElementById("clear-canvas");
+    if(clearButton) {
+        clearButton.onclick = function() {
+            socket.send(JSON.stringify({
+                type: "clear_canvas"
+            }));
+        }
+    }
+
 </script>
