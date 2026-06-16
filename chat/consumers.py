@@ -2,6 +2,7 @@ import json
 from channels.generic.websocket import AsyncWebsocketConsumer
 
 from chat.models import ChatMessage
+from games.models import Game, Round
 from games.services import process_guess
 from rooms.models import Room
 
@@ -15,6 +16,18 @@ def save_message(room_code, user, message):
 @database_sync_to_async
 def get_room(room_code):
     return Room.objects.filter(code=room_code).first()
+
+@database_sync_to_async
+def is_current_drawer(room, user):
+    game = Game.objects.filter(room=room, status=Game.IN_PROGRESS).order_by("-created_at").first()
+    if not game:
+        return False
+    
+    current_round = Round.objects.filter(game=game).order_by("-round_number").first()
+    if not current_round:
+        return False
+    
+    return current_round.drawer == user
 
 class ChatConsumer(AsyncWebsocketConsumer):
 
@@ -30,6 +43,8 @@ class ChatConsumer(AsyncWebsocketConsumer):
 
         # Fetch the room using database_sync_to_async
         self.room = await get_room(self.room_code)
+
+        self.can_draw = await is_current_drawer(self.room, self.user)
 
         await self.channel_layer.group_add(
             self.room_group_name,
@@ -75,6 +90,9 @@ class ChatConsumer(AsyncWebsocketConsumer):
             )
 
         elif event_type == "draw":
+            if not self.can_draw:
+                return
+            
             await self.channel_layer.group_send(
                 self.room_group_name,
                 {
@@ -89,6 +107,9 @@ class ChatConsumer(AsyncWebsocketConsumer):
             )
 
         elif event_type == "clear_canvas":
+            if not self.can_draw:
+                return
+
             await self.channel_layer.group_send(
                 self.room_group_name, 
                 {
