@@ -12,6 +12,10 @@ def get_current_round(game):
     return Round.objects.filter(game=game, round_number=game.current_round).first()
 
 def start_game(room):
+    existing_game = Game.objects.filter(room=room, status=Game.IN_PROGRESS).first()
+    if existing_game:
+        return existing_game
+
     game = Game.objects.create(room=room, status=Game.IN_PROGRESS, current_round=1, max_rounds=3)
     players = RoomPlayer.objects.filter(room=room, is_spectator=False)
     

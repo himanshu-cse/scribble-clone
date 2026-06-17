@@ -8,7 +8,7 @@
 {% endfor %}
 </ul>
 
-<form method="POST" action="{% url 'start_game' room.code %}">
+<form method="POST" action="{% url 'start_game' room.code %}" id="start-game">
     {% csrf_token %}
     <button> Start Game </button>
 </form>
@@ -24,7 +24,19 @@ const socket = new WebSocket("ws://" + window.location.host + "/ws/chat/" + room
 
 socket.onmessage = function(e) {
     const data = JSON.parse(e.data);
-   const chatLog = document.getElementById("chat-log");
+
+    // --- Check for system commands ---
+    if (data.command === "reload_page") {
+        window.location.reload(); 
+        return; // Stop running the rest of the script
+    }
+
+    if (data.command === "start_game") {
+        window.location.href = "/games/" + data.game_id + "/";
+        return;
+    }
+
+    const chatLog = document.getElementById("chat-log");
 
     if (data.event === "chat_message"){
         chatLog.innerHTML += "<p><strong>" + data.username + ":</strong> " + data.message + "</p>";

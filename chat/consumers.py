@@ -172,9 +172,7 @@ class ChatConsumer(AsyncWebsocketConsumer):
     async def system_message(self, event):
         # This catches the dictionary we sent from games/services.py
         # and sends it directly to the browser via WebSocket
-        await self.send(text_data=json.dumps({
-            "command": event["command"]
-        }))
+        await self.send(text_data=json.dumps(event))
 
     async def draw_event(self, event):
         await self.send(text_data=json.dumps({

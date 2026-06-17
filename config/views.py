@@ -13,17 +13,17 @@ def register_view(request):
         if password == password2:
             if User.objects.filter(email=email).exists():
                 messages.info(request, 'Email Already Used')
-                return redirect('/register')
+                return redirect('register')
             elif User.objects.filter(username=username).exists():
                 messages.info(request, 'Username Already Used')
-                return redirect('/register')
+                return redirect('register')
             else:
                 user = User.objects.create_user(username=username, email=email, password=password)
                 user.save()
-                return redirect('/login')
+                return redirect('login')
         else:
             messages.info(request, 'Password Not The Same')
-            return redirect('/register')
+            return redirect('register')
     else:
         return render(request, 'register.html')
     
@@ -36,15 +36,15 @@ def login_view(request):
         
         if user is not None:
             auth.login(request, user)
-            return redirect('/')
+            return redirect('home')
         else:
             messages.info(request, 'Credentials Invalid')
-            return redirect('/login')
+            return redirect('login')
     return render(request, 'login.html')
 
 def logout_view(request):
     auth.logout(request)
-    return redirect('/')
+    return redirect('home')
 
 def home(request):
     return render(request, 'home.html')

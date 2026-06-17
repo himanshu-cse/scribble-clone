@@ -6,10 +6,30 @@ from games.services import end_current_round, get_current_round, get_total_round
 from rooms.models import Room
 from .models import Game, PlayerScore, Round
 
+from channels.layers import get_channel_layer
+from asgiref.sync import async_to_sync
+
 def start_game_view(request, code):
     room = get_object_or_404(Room, code=code)
     game = start_game(room)
-    return redirect("game_detail", game_id=game.id)
+
+    channel_layer = get_channel_layer()
+
+    async_to_sync(channel_layer.group_send)(
+        f"room_{room.code}",
+        {
+            "type": "system_message",
+            "command": "start_game",
+            "game_id": game.id,
+        }
+    )
+
+    return render(
+        request, 
+        "games/game_detail.html", 
+        {
+            "game": game, 
+        })
 
 def game_detail_view(request, game_id):
     game = get_object_or_404(Game, id=game_id)
