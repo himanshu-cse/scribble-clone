@@ -3,27 +3,29 @@ from channels.generic.websocket import AsyncWebsocketConsumer
 
 from chat.models import ChatMessage
 from games.models import Game, Round
-from games.services import end_current_round, process_guess, start_next_round
+from games.services import end_current_round, process_guess, start_next_round, get_active_game, get_current_round
 from rooms.models import Room
 
 from channels.db import database_sync_to_async
 
 @database_sync_to_async
-def save_message(room_code, user, message):
-    room = Room.objects.filter(code=room_code).first()
+def save_message(room, user, message):
     return ChatMessage.objects.create(room=room, user=user, message=message)
 
 @database_sync_to_async
 def get_room(room_code):
-    return Room.objects.filter(code=room_code).first()
+    try:
+        return Room.objects.get(code=room_code)
+    except Room.DoesNotExist:
+        return None
 
 @database_sync_to_async
 def is_current_drawer(room, user):
-    game = Game.objects.filter(room=room, status=Game.IN_PROGRESS).order_by("-created_at").first()
+    game = get_active_game(room)
     if not game:
         return False
     
-    current_round = Round.objects.filter(game=game).order_by("-round_number").first()
+    current_round = get_current_round(game)
     if not current_round:
         return False
     
@@ -31,24 +33,24 @@ def is_current_drawer(room, user):
 
 @database_sync_to_async
 def start_next_round_for_room(room):
-    game = Game.objects.filter(room=room, status=Game.IN_PROGRESS).order_by("-created_at").first()
+    game = get_active_game(room)
     if not game:
-        return
+        return False
 
-    current_round = Round.objects.filter(game=game).order_by("-round_number").first()
+    current_round = get_current_round(game)
     if not current_round or not current_round.ended_at:
         return
-
+        
     return start_next_round(game)
 
 @database_sync_to_async
 def end_current_round_for_room(room):
-    game = Game.objects.filter(room=room, status=Game.IN_PROGRESS).order_by("-created_at").first()
+    game = get_active_game(room)
     if not game:
-        return
+        return False
 
-    current_round = Round.objects.filter(game=game).order_by("-round_number").first()
-    if not current_round or not current_round.ended_at:
+    current_round = get_current_round(game)
+    if not current_round or current_round.ended_at:
         return
     
     return end_current_round(game)
@@ -67,6 +69,10 @@ class ChatConsumer(AsyncWebsocketConsumer):
 
         # Fetch the room using database_sync_to_async
         self.room = await get_room(self.room_code)
+
+        if not self.room:
+            await self.close()
+            return
 
         self.can_draw = await is_current_drawer(self.room, self.user)
 
@@ -97,7 +103,7 @@ class ChatConsumer(AsyncWebsocketConsumer):
 
         if event_type == "chat_message":
             message = data["message"]
-            await save_message(self.room_code, self.user, message)
+            await save_message(self.room, self.user, message)
             # Wrap the heavily synchronous process_guess function
             is_correct_guess = await database_sync_to_async(process_guess)(self.room, self.user, message)
 

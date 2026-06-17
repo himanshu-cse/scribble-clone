@@ -5,6 +5,12 @@ from django.utils import timezone
 from channels.layers import get_channel_layer
 from asgiref.sync import async_to_sync
 
+def get_active_game(room):
+    return Game.objects.filter(room=room, status=Game.IN_PROGRESS).first()
+
+def get_current_round(game):
+    return Round.objects.filter(game=game, round_number=game.current_round).first()
+
 def start_game(room):
     game = Game.objects.create(room=room, status=Game.IN_PROGRESS, current_round=1, max_rounds=3)
     players = RoomPlayer.objects.filter(room=room, is_spectator=False)
@@ -34,7 +40,7 @@ def start_round(game):
     return round_obj
 
 def end_current_round(game):
-    current_round = Round.objects.filter(game=game).order_by("-round_number").first()
+    current_round = get_current_round(game)
 
     if not current_round or current_round.ended_at:
         return
@@ -108,11 +114,14 @@ def everyone_guessed(round_obj):
     return (get_correct_guess_count(round_obj) >= get_eligible_guessers(round_obj))
 
 def process_guess(room, player, message):
-    game = Game.objects.filter(room=room, status=Game.IN_PROGRESS).order_by("-created_at").first()
+    game = get_active_game(room)
     if not game:
         return False
     
-    current_round = Round.objects.filter(game=game).order_by("-round_number").first()
+    current_round = get_current_round(game)
+
+    if not current_round or current_round.ended_at:
+        return False
 
     if (message.lower().strip() == current_round.word.text.lower()):
         return record_correct_guess(current_round, player)

@@ -2,6 +2,8 @@ from django.db import models
 from rooms.models import Room
 from django.contrib.auth.models import User
 
+from django.db.models import Q
+
 class Word(models.Model):
     text = models.CharField(max_length=100, unique=True)
 
@@ -20,6 +22,15 @@ class Game(models.Model):
     current_round = models.IntegerField(default=0)
     max_rounds = models.IntegerField(default=0)
     created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["room"],
+                condition=Q(status="IN_PROGRESS"),
+                name="one_active_game_per_room",
+            )
+        ]
 
 class Round(models.Model):
     game = models.ForeignKey(Game, on_delete=models.CASCADE)

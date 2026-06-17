@@ -2,7 +2,7 @@ from django.shortcuts import render, redirect, get_object_or_404
 from django.utils import timezone
 
 from django.contrib.auth.models import User
-from games.services import end_current_round, get_total_rounds, start_game, record_correct_guess
+from games.services import end_current_round, get_current_round, get_total_rounds, start_game, record_correct_guess
 from rooms.models import Room
 from .models import Game, PlayerScore, Round
 
@@ -13,7 +13,7 @@ def start_game_view(request, code):
 
 def game_detail_view(request, game_id):
     game = get_object_or_404(Game, id=game_id)
-    current_round = Round.objects.filter(game=game).order_by("-round_number").first()
+    current_round = get_current_round(game)
     leaderboard = PlayerScore.objects.filter(game=game).order_by("-score")
     rounds = Round.objects.filter(game=game).order_by("round_number")
 
@@ -44,7 +44,7 @@ def end_round_view(request, game_id):
 
 def test_guess_view(request, game_id):
     game = Game.objects.get(id=game_id)
-    current_round = Round.objects.filter(game=game).order_by("-round_number").first()
+    current_round = get_current_round(game)
     guesser = PlayerScore.objects.filter(game=game).exclude(player=current_round.drawer).first().player
 
     record_correct_guess(current_round, guesser)
